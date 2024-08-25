@@ -1,18 +1,18 @@
 // import { otpTemplate } from './../utils/mail-templates/otp-template';
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   InternalServerErrorException,
-  UseInterceptors,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { UsersService } from 'src/users/users.service';
 import * as bcrypt from 'bcrypt';
 import Constants from 'src/utils/Constants';
-import { AuthInterceptor } from './auth.interceptor';
 import MailService from 'src/utils/mail.service';
 import { SendOtpDto, VerifyDto } from './dto/verify.dto';
+import { User } from 'src/users/entities/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -22,7 +22,6 @@ export class AuthService {
     private mailService: MailService,
   ) {}
 
-  @UseInterceptors(AuthInterceptor)
   async register(createUserDto: CreateUserDto) {
     const isRegistered = await this.userService.findOne(
       {
@@ -67,25 +66,58 @@ export class AuthService {
     };
   }
 
+  async validateUser(email: string, password: string) {
+    const user = await this.userService.findOne({ email });
+    if (user && (await bcrypt.compare(password, user.password))) {
+      return user;
+    }
+
+    throw new BadRequestException('Invalid credentials');
+  }
+
+  async login(user: User) {
+    const [accessToken, refreshToken] = await this.generateTokens({
+      userId: user.id,
+      role: user.role,
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      user,
+    };
+  }
+
+  async refreshToken({ userId, role }: { userId: number; role: string }) {
+    const [accessToken, refreshToken] = await this.generateTokens({
+      userId,
+      role,
+    });
+    return {
+      accessToken,
+      refreshToken,
+    };
+  }
+
   async verifyOtp(verifyDto: VerifyDto) {
     const user = await this.userService.findOne({ email: verifyDto.email });
 
     if (!user) {
       throw new InternalServerErrorException('User not found');
     }
-    if (user.otp !== verifyDto.otp) {
+    if (user.otp !== verifyDto.otp || user.otpExpiry < new Date()) {
       throw new InternalServerErrorException('Invalid OTP');
     }
-    if (user.otpExpiry < new Date()) {
-      throw new InternalServerErrorException('OTP expired');
-    }
+
     user.verified = true;
     user.otp = null;
     user.otpExpiry = null;
     const result = await this.userService.update(user.id, user);
     return {
       message:
-        result.affected > 0 ? 'User verified successfully' : 'User not found',
+        result.affected > 0
+          ? 'User verified successfully'
+          : 'User not verified',
     };
   }
 
@@ -96,9 +128,11 @@ export class AuthService {
     if (user.verified)
       throw new InternalServerErrorException('User already verified');
 
-    user.otp = Math.floor(1000 + Math.random() * 9000).toString();
-    user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-    await this.userService.update(user.id, user);
+    await this.userService.update(user.id, {
+      ...user,
+      otp: Math.floor(1000 + Math.random() * 9000).toString(),
+      otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
+    });
 
     // await this.mailService.sendMail({
     //   to: user.email,

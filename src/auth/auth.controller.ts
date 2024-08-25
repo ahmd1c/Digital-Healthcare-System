@@ -4,6 +4,9 @@ import {
   Post,
   Body,
   UseInterceptors,
+  UseGuards,
+  Request,
+  Get,
   // Patch,
   // Param,
   // Delete,
@@ -14,6 +17,7 @@ import { AuthService } from './auth.service';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { AuthInterceptor } from './auth.interceptor';
 import { SendOtpDto, VerifyDto } from './dto/verify.dto';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('auth')
 export class AuthController {
@@ -35,10 +39,19 @@ export class AuthController {
   sendOtp(@Body() sendOtpDto: SendOtpDto) {
     return this.authService.sendOtp(sendOtpDto);
   }
-  // @Post('login')
-  // login(@Body() createUserDto: CreateUserDto) {
-  //   return this.authService.login(createUserDto);
-  // }
+
+  @UseGuards(AuthGuard('local'))
+  @UseInterceptors(AuthInterceptor)
+  @Post('login')
+  login(@Request() req) {
+    return this.authService.login(req.user);
+  }
+
+  @UseGuards(AuthGuard('jwt-refresh'))
+  @Get('refresh')
+  refresh(@Request() req) {
+    return this.authService.refreshToken(req.user);
+  }
 
   // @Get(':id')
   // findOne(@Param('id') id: string) {
