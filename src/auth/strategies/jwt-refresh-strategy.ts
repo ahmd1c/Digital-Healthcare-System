@@ -1,8 +1,10 @@
+import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { JwtPayload } from 'jsonwebtoken';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import Constants from 'src/utils/Constants';
 
+@Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(
   Strategy,
   'jwt-refresh',
@@ -15,11 +17,11 @@ export class JwtRefreshStrategy extends PassportStrategy(
         ExtractJwt.fromAuthHeaderWithScheme('Refresh'),
       ]),
       ignoreExpiration: false,
-      secretOrKey: Constants.JWT_SECRET,
+      secretOrKey: Constants.JWT_REFRESH_SECRET,
     });
   }
 
   async validate(payload: JwtPayload) {
-    return { userId: payload.sub, role: payload.role };
+    return { id: payload.userId, role: payload.role };
   }
 }
