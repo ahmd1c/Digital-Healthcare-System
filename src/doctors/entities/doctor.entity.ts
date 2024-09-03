@@ -11,13 +11,18 @@ import {
 } from 'typeorm';
 import { DocExperience } from '../doc_experiences/entities/doc_experience.entity';
 import { Review } from 'src/reviews/entities/review.entity';
+import { MedRecordPermissions } from 'src/permissions/medRecord-permissions.entity';
+
+type Education = {
+  degree: string;
+  institution: string;
+  year: number;
+};
 
 @Entity()
 export class Doctor {
-  @PrimaryColumn()
-  @OneToOne(() => User, (user) => user.doc)
-  @JoinColumn({ name: 'doc_id' })
-  user: User;
+  @PrimaryColumn({ type: 'int' })
+  doc_id: number;
 
   @Column()
   specialization: string;
@@ -28,17 +33,27 @@ export class Doctor {
   @Column()
   schedule_duration: number; // in minutes
 
-  @Column()
+  @Column({ default: false })
   approved: boolean;
 
-  @Column({ type: 'jsonb', array: true })
-  education: { degree: string; institution: string; year: number }[];
+  @Column({ type: 'jsonb' })
+  education: Education[];
 
-  @OneToMany(() => Timeslot, (timeslot) => timeslot.doc)
+  @OneToOne(() => User, (user) => user.doc)
+  @JoinColumn({ name: 'doc_id' })
+  user: User;
+
+  @OneToMany(() => Timeslot, (timeslot) => timeslot.doctor)
   timeslots: Timeslot[];
 
   @OneToMany(() => Appointment, (appointment) => appointment.doctor)
   appointments: Appointment[];
+
+  @OneToMany(
+    () => MedRecordPermissions,
+    (medRecordPermissions) => medRecordPermissions.doctor,
+  )
+  medRecordPermissions: MedRecordPermissions[];
 
   @OneToMany(() => DocExperience, (docExperience) => docExperience.doc)
   experiences: DocExperience[];
