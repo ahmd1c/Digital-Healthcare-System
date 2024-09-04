@@ -14,10 +14,8 @@ import {
 
 @Entity()
 export class Patient extends BaseEntity {
-  @PrimaryColumn()
-  @OneToOne(() => User, (user) => user.patient)
-  @JoinColumn({ name: 'patient_id' })
-  user: User;
+  @PrimaryColumn({ name: 'patient_id', type: 'int' })
+  patient_id: number;
 
   @Column()
   marital_status: string;
@@ -34,8 +32,11 @@ export class Patient extends BaseEntity {
   @Column()
   date_of_birth: Date;
 
+  @OneToOne(() => User, (user) => user.patient)
+  @JoinColumn({ name: 'patient_id' })
+  user: User;
+
   @OneToOne(() => MedRecord, (medRecord) => medRecord.patient)
-  @JoinColumn()
   medRecord: MedRecord;
 
   @OneToMany(() => Appointment, (appointment) => appointment.patient)

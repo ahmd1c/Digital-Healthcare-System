@@ -45,6 +45,15 @@ export class User extends BaseEntity {
   @Column()
   address: string;
 
+  @Column({ nullable: true, select: false })
+  otp: string;
+
+  @Column({ nullable: true, select: false })
+  otpExpiry: Date;
+
+  @Column({ default: false, select: false })
+  verified: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 
