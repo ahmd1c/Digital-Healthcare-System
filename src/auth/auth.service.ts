@@ -12,17 +12,19 @@ import * as bcrypt from 'bcrypt';
 import Constants from 'src/utils/Constants';
 import MailService from 'src/utils/mail.service';
 import { SendOtpDto, VerifyDto } from './dto/verify.dto';
-import { User } from 'src/users/entities/user.entity';
+import { Response } from 'express';
+import { DoctorsService } from 'src/doctors/doctors.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private userService: UsersService,
+    private doctorService: DoctorsService,
     private jwtService: JwtService,
     private mailService: MailService,
   ) {}
 
-  async register(createUserDto: CreateUserDto) {
+  async register(createUserDto: CreateUserDto, res: Response) {
     const isRegistered = await this.userService.findOne(
       {
         email: createUserDto.email,
@@ -52,9 +54,10 @@ export class AuthService {
     // });
 
     const [accessToken, refreshToken] = await this.generateTokens({
-      userId: user.id,
+      id: user.id,
       role: user.role,
     });
+    this.generateCookies(accessToken, refreshToken, res);
 
     return {
       accessToken,
@@ -62,25 +65,24 @@ export class AuthService {
       user,
       message:
         `A verification code has been sent to ${user.email}. ` +
-        `please complete your profile ${user.role === 'DOCTOR' ? 'to get approved' : 'to book an appointment'}`,
+        `please complete your profile` +
+        `${user.role === 'DOCTOR' ? 'to get approved' : 'to book an appointment'}`,
     };
   }
 
-  async validateUser(email: string, password: string) {
-    const user = await this.userService.findOne({ email });
-    if (user && (await bcrypt.compare(password, user.password))) {
-      return user;
+  async login(email: string, password: string, res: Response) {
+    const user = await this.userService.findOne({ email }, [
+      'id',
+      'password',
+      'role',
+    ]);
+
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      throw new BadRequestException('Invalid credentials');
     }
-
-    throw new BadRequestException('Invalid credentials');
-  }
-
-  async login(user: User) {
-    const [accessToken, refreshToken] = await this.generateTokens({
-      userId: user.id,
-      role: user.role,
-    });
-
+    const paylaod = { id: user.id, role: user.role };
+    const [accessToken, refreshToken] = await this.generateTokens(paylaod);
+    this.generateCookies(accessToken, refreshToken, res);
     return {
       accessToken,
       refreshToken,
@@ -88,11 +90,9 @@ export class AuthService {
     };
   }
 
-  async refreshToken({ userId, role }: { userId: number; role: string }) {
-    const [accessToken, refreshToken] = await this.generateTokens({
-      userId,
-      role,
-    });
+  async refreshToken(payload: { id: number; role: string }, res: Response) {
+    const [accessToken, refreshToken] = await this.generateTokens(payload);
+    this.generateCookies(accessToken, refreshToken, res);
     return {
       accessToken,
       refreshToken,
@@ -143,18 +143,28 @@ export class AuthService {
     return { message: 'OTP sent successfully' };
   }
 
-  generateTokens(payload: { userId: number; role: string }) {
+  generateTokens(payload: { id: number; role: string }) {
     const accessToken = this.jwtService.signAsync(payload, {
       secret: Constants.JWT_SECRET,
       expiresIn: Constants.JWT_EXPIRES_IN,
     });
-    const refreshToken = this.jwtService.signAsync(
-      { userId: payload.userId },
-      {
-        expiresIn: Constants.JWT_REFRESH_EXPIRES_IN,
-        secret: Constants.JWT_REFRESH_SECRET,
-      },
-    );
+    const refreshToken = this.jwtService.signAsync(payload, {
+      expiresIn: Constants.JWT_REFRESH_EXPIRES_IN,
+      secret: Constants.JWT_REFRESH_SECRET,
+    });
     return Promise.all([accessToken, refreshToken]);
+  }
+
+  generateCookies(accessToken: string, refreshToken: string, res: Response) {
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 1000, // 1 hour
+    });
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 14 * 24 * 60 * 60 * 1000, // 14 days
+    });
   }
 }

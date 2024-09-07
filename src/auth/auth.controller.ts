@@ -1,32 +1,32 @@
 import {
   Controller,
-  // Get,
   Post,
   Body,
   UseInterceptors,
   UseGuards,
   Request,
-  Get,
-  // Patch,
-  // Param,
-  // Delete,
+  Response,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-// import { LoginDto } from './dto/login.dto';
-// import { UpdateAuthDto } from './dto/update-auth.dto';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { AuthInterceptor } from './auth.interceptor';
 import { SendOtpDto, VerifyDto } from './dto/verify.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { Public } from './public-decorator';
+import { Response as ExpressResponse } from 'express';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Public()
   @UseInterceptors(AuthInterceptor)
   @Post('register')
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.authService.register(createUserDto);
+  create(
+    @Body() createUserDto: CreateUserDto,
+    @Response({ passthrough: true }) res: ExpressResponse,
+  ) {
+    return this.authService.register(createUserDto, res);
   }
 
   @Post('verify')
@@ -34,37 +34,33 @@ export class AuthController {
     return this.authService.verifyOtp(verifyDto);
   }
 
-  // should be protected
-  @Post('send-email-otp')
+  @Post('send-verification-otp')
   sendOtp(@Body() sendOtpDto: SendOtpDto) {
     return this.authService.sendOtp(sendOtpDto);
   }
 
+  @Public()
   @UseGuards(AuthGuard('local'))
   @UseInterceptors(AuthInterceptor)
   @Post('login')
-  login(@Request() req) {
-    return this.authService.login(req.user);
+  login(@Request() req, @Response({ passthrough: true }) res: ExpressResponse) {
+    return this.authService.login(req.user.email, req.user.password, res);
   }
 
+  @Public() // this only to avoid the global access token guard
   @UseGuards(AuthGuard('jwt-refresh'))
-  @Get('refresh')
-  refresh(@Request() req) {
-    return this.authService.refreshToken(req.user);
+  @Post('refresh')
+  refresh(
+    @Request() req,
+    @Response({ passthrough: true }) res: ExpressResponse,
+  ) {
+    return this.authService.refreshToken(req.user, res);
   }
 
-  // @Get(':id')
-  // findOne(@Param('id') id: string) {
-  //   return this.authService.findOne(+id);
-  // }
-
-  // @Patch(':id')
-  // update(@Param('id') id: string, @Body() updateAuthDto: UpdateAuthDto) {
-  //   return this.authService.update(+id, updateAuthDto);
-  // }
-
-  // @Delete(':id')
-  // remove(@Param('id') id: string) {
-  //   return this.authService.remove(+id);
-  // }
+  @Public()
+  @Post('logout')
+  logout(@Response({ passthrough: true }) res: ExpressResponse) {
+    res.clearCookie('access_token').clearCookie('refresh_token');
+    return { message: 'Logged out successfully' };
+  }
 }
