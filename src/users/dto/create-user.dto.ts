@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsEmail,
   IsIn,
@@ -6,7 +6,11 @@ import {
   IsPhoneNumber,
   IsString,
   Length,
+  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
+import { CreateDoctorDto } from 'src/doctors/dto/create-doctor.dto';
+import { CreatePatientDto } from 'src/patients/dto/create-patient.dto';
 
 export class CreateUserDto {
   @IsNotEmpty()
@@ -31,12 +35,11 @@ export class CreateUserDto {
   @IsNotEmpty()
   @IsString()
   @Length(4, 7)
-  @Transform(({ value }) => value.toUpperCase())
-  @IsIn(['PATIENT', 'DOCTOR'])
+  @Transform(({ value }) => value.toLowerCase())
+  @IsIn(['patient', 'doctor'])
   accType: string;
 
   @IsNotEmpty()
-  @IsString()
   @Length(10, 15)
   @IsPhoneNumber()
   phone: string;
@@ -46,4 +49,16 @@ export class CreateUserDto {
   @Length(1)
   @Transform(({ value }) => value.toUpperCase())
   gender: string;
+
+  @ValidateIf((o) => o.accType === 'doctor')
+  @IsNotEmpty()
+  @Type(() => CreateDoctorDto)
+  @ValidateNested()
+  doctor?: CreateDoctorDto;
+
+  @ValidateIf((o) => o.accType === 'patient')
+  @IsNotEmpty()
+  @Type(() => CreatePatientDto)
+  @ValidateNested()
+  patient?: CreatePatientDto;
 }
