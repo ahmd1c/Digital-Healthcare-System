@@ -3,31 +3,30 @@ import {
   Get,
   Post,
   Body,
-  Request,
   Query,
   Param,
   Patch,
   UseGuards,
   Delete,
-  SetMetadata,
 } from '@nestjs/common';
 import { DoctorsService } from './doctors.service';
 import { CreateDoctorDto } from './dto/create-doctor.dto';
 import { QueryParamsDto } from '../utils/query-params.dto';
-import { OwnerGuard } from 'src/utils/decorators/owner-guard';
+import { OwnerGuard } from 'src/auth/guards/owner-guard';
 import { UpdateDoctorDto } from './dto/update-doctor.dto';
-import { RolesGuard } from 'src/utils/decorators/Roles-guard';
+import { RolesGuard } from 'src/auth/guards/Roles-guard';
 import { Auth } from 'src/utils/decorators/Auth-decorator';
+import User from 'src/utils/decorators/USER.decorator';
 
 @Controller('doctors')
 export class DoctorsController {
   constructor(private readonly doctorsService: DoctorsService) {}
 
-  @SetMetadata('roles', ['admin'])
+  @Auth('admin')
   @UseGuards(RolesGuard)
   @Post()
-  create(@Body() createDoctorDto: CreateDoctorDto, @Request() req) {
-    return this.doctorsService.create({ ...createDoctorDto, id: req.user?.id });
+  create(@Body() createDoctorDto: CreateDoctorDto, @User() user) {
+    return this.doctorsService.create({ ...createDoctorDto, id: user?.id });
   }
 
   @Get()
@@ -40,7 +39,7 @@ export class DoctorsController {
     return this.doctorsService.findOne({ doc_id: +id });
   }
 
-  @Auth('ADMIN', 'DOCTOR')
+  @Auth('admin', 'doctor')
   @UseGuards(OwnerGuard)
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateDoctorDto: UpdateDoctorDto) {

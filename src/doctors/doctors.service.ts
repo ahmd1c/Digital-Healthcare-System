@@ -1,4 +1,8 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { CreateDoctorDto } from './dto/create-doctor.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Doctor } from './entities/doctor.entity';
@@ -6,12 +10,14 @@ import { FindOptionsWhere, Repository } from 'typeorm';
 import { QueryService } from 'src/utils/query-prepare.service';
 import { QueryParamsDto } from 'src/utils/query-params.dto';
 import { UpdateDoctorDto } from './dto/update-doctor.dto';
+import { NotificationService } from 'src/notifications/notification.service';
 
 @Injectable()
 export class DoctorsService {
   constructor(
     @InjectRepository(Doctor) private doctorRepository: Repository<Doctor>,
     private readonly queryService: QueryService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async create(createDoctorDto: CreateDoctorDto & { id: number }) {
@@ -31,6 +37,28 @@ export class DoctorsService {
 
   init(createDoctorDto: CreateDoctorDto) {
     return this.doctorRepository.create(createDoctorDto);
+  }
+
+  async approve(id: number) {
+    await this.doctorRepository.queryRunner.startTransaction();
+    try {
+      await this.doctorRepository.update(id, { approved: true });
+      await this.notificationService.notify({
+        userId: id,
+        type: 'doctor:approved',
+        message: 'Your doctor account has been approved',
+      });
+      await this.doctorRepository.queryRunner.commitTransaction();
+    } catch (error) {
+      await this.doctorRepository.queryRunner.rollbackTransaction();
+      throw new InternalServerErrorException("couldn't approve doctor");
+    } finally {
+      await this.doctorRepository.queryRunner.release();
+    }
+    return {
+      success: true,
+      message: 'doctor approved successfully',
+    };
   }
 
   async findAll(query?: QueryParamsDto) {
