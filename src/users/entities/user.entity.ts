@@ -1,10 +1,12 @@
 import { Doctor } from 'src/doctors/entities/doctor.entity';
+import { Notifications } from 'src/notifications/notifications.entity';
 import { Patient } from 'src/patients/entities/patient.entity';
 import {
   BaseEntity,
   Column,
   CreateDateColumn,
   Entity,
+  OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -65,4 +67,7 @@ export class User extends BaseEntity {
 
   @OneToOne(() => Doctor, (doc) => doc.user, { cascade: true })
   doc: Doctor;
+
+  @OneToMany(() => Notifications, (notification) => notification.user)
+  notifications: Notifications[];
 }
