@@ -5,16 +5,14 @@ import {
   Entity,
   JoinColumn,
   OneToOne,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
 @Entity()
 export class Prescription {
-  @PrimaryColumn({ name: 'prescription_id', type: 'int' })
-  @OneToOne(() => Appointment, (appointment) => appointment.prescription)
-  @JoinColumn({ name: 'appointment_id' })
-  appointment: Appointment;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @Column({ type: 'jsonb' })
   prescription: unknown;
@@ -24,4 +22,8 @@ export class Prescription {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @OneToOne(() => Appointment, (appointment) => appointment.prescription)
+  @JoinColumn({ name: 'appointment_id' })
+  appointment: Appointment;
 }
