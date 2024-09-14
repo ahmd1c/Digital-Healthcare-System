@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Appointment } from './entities/appointment.entity';
 import { TimeslotsModule } from 'src/timeslots/timeslots.module';
 import { NotificationModule } from 'src/notifications/notification.module';
+import MailService from 'src/utils/mail.service';
 
 @Module({
   imports: [
@@ -13,7 +14,7 @@ import { NotificationModule } from 'src/notifications/notification.module';
     NotificationModule,
   ],
   controllers: [AppointmentsController],
-  providers: [AppointmentsService],
+  providers: [AppointmentsService, MailService],
   exports: [AppointmentsService],
 })
 export class AppointmentsModule {}
