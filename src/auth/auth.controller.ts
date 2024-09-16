@@ -4,8 +4,8 @@ import {
   Body,
   UseInterceptors,
   UseGuards,
-  Request,
   Response,
+  Patch,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
@@ -14,6 +14,10 @@ import { SendOtpDto, VerifyDto } from './dto/verify.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { Public } from './public-decorator';
 import { Response as ExpressResponse } from 'express';
+import { ForgotPassDto } from './dto/forget-password.dto';
+import { ResetPassDto } from './dto/reset-pass.dto';
+import { ChangePassDto } from './dto/change-pass.dto';
+import User from 'src/utils/decorators/USER.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -41,20 +45,16 @@ export class AuthController {
 
   @Public()
   @UseGuards(AuthGuard('local'))
-  @UseInterceptors(AuthInterceptor)
   @Post('login')
-  login(@Request() req, @Response({ passthrough: true }) res: ExpressResponse) {
-    return this.authService.login(req.user.email, req.user.password, res);
+  login(@User() user, @Response({ passthrough: true }) res: ExpressResponse) {
+    return this.authService.login(user.email, user.password, res);
   }
 
   @Public() // this only to avoid the global access token guard
   @UseGuards(AuthGuard('jwt-refresh'))
   @Post('refresh')
-  refresh(
-    @Request() req,
-    @Response({ passthrough: true }) res: ExpressResponse,
-  ) {
-    return this.authService.refreshToken(req.user, res);
+  refresh(@User() user, @Response({ passthrough: true }) res: ExpressResponse) {
+    return this.authService.refreshToken(user, res);
   }
 
   @Public()
@@ -62,5 +62,22 @@ export class AuthController {
   logout(@Response({ passthrough: true }) res: ExpressResponse) {
     res.clearCookie('access_token').clearCookie('refresh_token');
     return { message: 'Logged out successfully' };
+  }
+
+  @Public()
+  @Post('forgot-password')
+  async forgotPassword(@Body('email') email: ForgotPassDto) {
+    return this.authService.forgotPassword(email);
+  }
+
+  @Public()
+  @Patch('reset-password')
+  async resetPassword(@Body() resetPassDto: ResetPassDto) {
+    return this.authService.resetPassword(resetPassDto);
+  }
+
+  @Patch('change-password')
+  async changePassword(@Body() changePassDto: ChangePassDto, @User() user) {
+    return this.authService.changePassword(changePassDto, user.id);
   }
 }

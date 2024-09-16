@@ -1,9 +1,12 @@
-// import { otpTemplate } from './../utils/mail-templates/otp-template';
+import { otpTemplate } from './../utils/mail-templates/otp-template';
+import { resetPasswordTemplate } from 'src/utils/mail-templates/reset-password-template';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
@@ -14,6 +17,11 @@ import MailService from 'src/utils/mail.service';
 import { SendOtpDto, VerifyDto } from './dto/verify.dto';
 import { Response } from 'express';
 import { DoctorsService } from 'src/doctors/doctors.service';
+import { ForgotPassDto } from './dto/forget-password.dto';
+import * as crypto from 'crypto';
+import { MoreThanOrEqual } from 'typeorm';
+import { ResetPassDto } from './dto/reset-pass.dto';
+import { ChangePassDto } from './dto/change-pass.dto';
 
 @Injectable()
 export class AuthService {
@@ -45,13 +53,16 @@ export class AuthService {
 
     const user = await this.userService.create(userData);
     if (!user) throw new InternalServerErrorException('Failed to create user');
-    console.log(user);
 
-    // await this.mailService.sendMail({
-    //   to: user.email,
-    //   subject: 'Verification code',
-    //   html: otpTemplate(user.otp),
-    // });
+    try {
+      await this.mailService.sendMail({
+        to: user.email,
+        subject: 'Verification code',
+        html: otpTemplate(user.otp),
+      });
+    } catch (err) {
+      throw new InternalServerErrorException('Failed to send email');
+    }
 
     const [accessToken, refreshToken] = await this.generateTokens({
       id: user.id,
@@ -66,7 +77,7 @@ export class AuthService {
       message:
         `A verification code has been sent to ${user.email}. ` +
         `please complete your profile` +
-        `${user.role === 'DOCTOR' ? 'to get approved' : 'to book an appointment'}`,
+        `${user.role === 'doctor' ? 'to get approved' : 'to book an appointment'}`,
     };
   }
 
@@ -78,7 +89,7 @@ export class AuthService {
     ]);
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      throw new BadRequestException('Invalid credentials');
+      throw new UnauthorizedException('Invalid credentials');
     }
     const paylaod = { id: user.id, role: user.role };
     const [accessToken, refreshToken] = await this.generateTokens(paylaod);
@@ -86,7 +97,6 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      user,
     };
   }
 
@@ -123,10 +133,9 @@ export class AuthService {
 
   async sendOtp(sendOtpDto: SendOtpDto) {
     const user = await this.userService.findOne({ email: sendOtpDto.email });
-    if (!user) throw new InternalServerErrorException('User not found');
+    if (!user) throw new NotFoundException('User not found');
 
-    if (user.verified)
-      throw new InternalServerErrorException('User already verified');
+    if (user.verified) throw new BadRequestException('User already verified');
 
     await this.userService.update(user.id, {
       ...user,
@@ -134,12 +143,15 @@ export class AuthService {
       otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
     });
 
-    // await this.mailService.sendMail({
-    //   to: user.email,
-    //   subject: 'Verification code',
-    //   html: otpTemplate(user.otp),
-    // });
-    // IT REACHES HERE ONLY IF MSG IS SENT
+    try {
+      await this.mailService.sendMail({
+        to: user.email,
+        subject: 'Verification code',
+        html: otpTemplate(user.otp),
+      });
+    } catch (err) {
+      throw new InternalServerErrorException('Failed to send email');
+    }
     return { message: 'OTP sent successfully' };
   }
 
@@ -166,5 +178,64 @@ export class AuthService {
       secure: process.env.NODE_ENV === 'production',
       maxAge: 14 * 24 * 60 * 60 * 1000, // 14 days
     });
+  }
+
+  async forgotPassword({ email }: ForgotPassDto) {
+    const message = `if a user with this email exists, an email has been sent to it`;
+    const user = await this.userService.findOne({ email });
+    if (!user) return { message };
+    const token = crypto.randomBytes(32).toString('hex');
+    const hashedToken = await bcrypt.hash(token, 10);
+    await this.userService.update(user.id, {
+      ...user,
+      passwordResetToken: hashedToken,
+      passwordResetExpires: new Date(Date.now() + 10 * 60 * 1000),
+    });
+    try {
+      await this.mailService.sendMail({
+        to: user.email,
+        subject: 'Password reset',
+        html: resetPasswordTemplate(token, user.id),
+      });
+    } catch (err) {
+      throw new InternalServerErrorException('Unable to send email');
+    }
+    return { message };
+  }
+
+  async resetPassword({ token, password, userId }: ResetPassDto) {
+    const hashedToken = await bcrypt.hash(token, 10);
+    const user = await this.userService.findOne({
+      id: userId,
+      passwordResetToken: hashedToken,
+      passwordResetExpires: MoreThanOrEqual(new Date()),
+    });
+    if (!user) throw new InternalServerErrorException('Invalid token');
+    const hashedPassword = await bcrypt.hash(password, 11);
+    await this.userService.update(user.id, {
+      ...user,
+      password: hashedPassword,
+      passwordChangedAt: new Date(),
+      passwordResetToken: null,
+      passwordResetExpires: null,
+    });
+    return { message: 'Password reset successfully' };
+  }
+
+  async changePassword(changePassDto: ChangePassDto, userId) {
+    const user = await this.userService.findOne({ id: userId }, ['password']);
+    if (!user) throw new BadRequestException('User not found');
+    const isMatch = await bcrypt.compare(
+      changePassDto.oldPassword,
+      user.password,
+    );
+    if (!isMatch) throw new BadRequestException('Invalid password');
+    const hashedPassword = await bcrypt.hash(changePassDto.newPassword, 11);
+    await this.userService.update(user.id, {
+      ...user,
+      password: hashedPassword,
+      passwordChangedAt: new Date(),
+    });
+    return { message: 'Password changed successfully' };
   }
 }
