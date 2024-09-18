@@ -46,6 +46,13 @@ export class DoctorsController {
     return this.doctorsService.update(+id, updateDoctorDto);
   }
 
+  @Auth('admin')
+  @Post(':id/approval')
+  approve(@Param('id') id: string, @Body('approval') approval: boolean) {
+    return this.doctorsService.approve(+id, approval);
+  }
+
+  @Auth('admin', 'doctor')
   @UseGuards(OwnerGuard)
   @Delete(':id')
   remove(@Param('id') id: string) {
