@@ -1,7 +1,12 @@
 import * as nodemailer from 'nodemailer';
 import Constants from './Constants';
 import { Injectable } from '@nestjs/common';
-import { EmailOptions } from './types';
+
+export type EmailOptions = {
+  to: string;
+  subject: string;
+  html: string;
+};
 
 @Injectable()
 export default class MailService {

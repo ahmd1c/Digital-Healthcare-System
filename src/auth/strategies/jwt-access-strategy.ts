@@ -23,6 +23,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt-access') {
       'id',
       'role',
     ]);
+    console.log('inside validate');
+
     if (!user) throw new UnauthorizedException('Invalid token');
     return user;
   }
