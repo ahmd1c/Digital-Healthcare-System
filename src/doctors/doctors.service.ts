@@ -40,22 +40,24 @@ export class DoctorsService {
   }
 
   async approve(id: number, approved: boolean) {
-    await this.doctorRepository.queryRunner.startTransaction();
+    const runner = this.doctorRepository.manager.connection.createQueryRunner();
+    await runner.connect();
+    await runner.startTransaction();
     try {
-      await this.doctorRepository.update(id, { approved });
+      await this.doctorRepository.update({ doc_id: id }, { approved });
       await this.notificationService.notify({
         userId: id,
         type: 'doctor:approved',
         message: `Your doctor account has been ${approved ? 'approved' : 'unapproved'}`,
       });
-      await this.doctorRepository.queryRunner.commitTransaction();
+      await runner.commitTransaction();
     } catch (error) {
-      await this.doctorRepository.queryRunner.rollbackTransaction();
+      await runner.rollbackTransaction();
       throw new InternalServerErrorException(
         `couldn't ${approved ? 'approve' : 'unapprove'} doctor`,
       );
     } finally {
-      await this.doctorRepository.queryRunner.release();
+      await runner.release();
     }
     return {
       success: true,
