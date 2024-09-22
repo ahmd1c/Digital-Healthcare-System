@@ -14,10 +14,10 @@ export class Timeslot {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'date' })
+  @Column({ type: 'time' })
   start_time: Date;
 
-  @Column({ type: 'date' })
+  @Column({ type: 'time' })
   end_time: Date;
 
   @Column({
